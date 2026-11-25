@@ -36,6 +36,61 @@ upsert() { # source name url category status
   fi
 }
 
+# ============ DISCOVERY: search engines find venues we don't know about ============
+
+# GitHub search API (keyless, 10 req/min): recently created challenge repos.
+gh_discover() { # query label
+  local q="$1" label="$2"
+  local J
+  J=$(curl -sfL --max-time 20 -H 'User-Agent: estate-scout' \
+    "https://api.github.com/search/repositories?q=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$q")&sort=updated&per_page=20") || return
+  echo "$J" | python3 -c "
+import json, sys
+for r in json.load(sys.stdin).get('items', []):
+    print(r['full_name'] + '|' + (r.get('description') or '')[:120].replace('|',' ') + '|' + r['html_url'])
+" | while IFS='|' read -r name desc url; do
+    [ -z "$name" ] && continue
+    upsert "gh-discovery-$label" "$name" "$url" "discovered" "open"
+  done
+}
+
+gh_discover '"billion row" OR "row challenge" OR 1brc' 1brc-family
+gh_discover '"I will benchmark" OR "I benchmark it" OR "implement the same API"' arjay-style
+gh_discover 'challenge leaderboard benchmark in:readme created:>2026-10-01' new-challenges
+gh_discover 'topic:benchmark topic:competition created:>2026-10-01' new-topic-challenges
+gh_discover 'coding contest performance rust OR "systems programming" created:>2026-10-01' systems-contests
+
+# Hacker News (Algolia, keyless): new performance-challenge stories
+HN=$(curl -sfL --max-time 20 "https://hn.algolia.com/api/v1/search_by_date?query=challenge%20benchmark%20leaderboard&tags=story&hitsPerPage=20" || true)
+if [ -n "$HN" ]; then
+  echo "$HN" | python3 -c "
+import json, sys
+for h in json.load(sys.stdin).get('hits', []):
+    t = (h.get('title') or '')
+    if any(k in t.lower() for k in ('challenge','benchmark','leaderboard','competition','fastest','1brc')):
+        print(str(h.get('objectID'))+'|'+t[:120].replace('|',' ')+'|'+(h.get('url') or 'https://news.ycombinator.com/item?id='+str(h.get('objectID'))))
+" | while IFS='|' read -r hid title url; do
+    [ -z "$hid" ] && continue
+    upsert "hn" "$hid" "$url" "hn-story" "watch"
+  done
+fi
+
+# openchallengelist.com: the open-challenge directory index
+if P=$(fetch "https://openchallengelist.com/"); then
+  echo "$P" | grep -oE '/c/[a-z0-9-]+' | sort -u | while read -r path; do
+    upsert "openchallengelist" "ocl${path}" "https://openchallengelist.com${path}" "directory" "open"
+  done
+fi
+
+# mlcontests.com: ML competition listing with deadlines
+if P=$(fetch "https://mlcontests.com/"); then
+  echo "$P" | grep -oE 'href="[^"]*"' | grep -iE 'contest|challenge|competition' | head -20 | while read -r href; do
+    url=$(echo "$href" | tr -d '"')
+    [[ "$url" == http* ]] || url="https://mlcontests.com$url"
+    upsert "mlcontests" "$url" "$url" "ml-competition" "watch"
+  done
+fi
+
 # source 1: arjaythedev repos (new challenges surface here first)
 if J=$(fetch "https://api.github.com/users/arjaythedev/repos?sort=created&per_page=30"); then
   while IFS='|' read -r name desc url; do
