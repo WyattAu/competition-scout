@@ -91,6 +91,49 @@ if P=$(fetch "https://mlcontests.com/"); then
   done
 fi
 
+# ============ NICHE SOURCES: rare/deep competition homes (edition watchers) ============
+# Each fetch detects content change => new edition or new contest on that scene.
+niche_watch() { # name url
+  local name="$1" url="$2"
+  local sig
+  sig=$(fetch "$url" | head -c 4000 | shasum -a 256 | cut -c1-16)
+  [ -z "$sig" ] && return
+  local known
+  known=$(sqlite3 "$DB" "SELECT notes FROM venues WHERE source='niche' AND name='$name' AND notes LIKE 'sig:%' LIMIT 1;")
+  if [ -z "$known" ]; then
+    upsert "niche" "$name" "$url" "niche" "watch"
+    sqlite3 "$DB" "UPDATE venues SET notes='sig:$sig' WHERE source='niche' AND name='$name';"
+  elif [ "sig:$sig" != "$known" ]; then
+    sqlite3 "$DB" "UPDATE venues SET notes='sig:$sig', last_seen='$NOW', status='EDITION-CHANGE' WHERE source='niche' AND name='$name';"
+    echo "EDITION-CHANGE: $name ($url)"
+  fi
+}
+
+niche_watch "icfp-contest" "https://icfp.org/contest/"
+niche_watch "ioccc" "https://www.ioccc.org/"
+niche_watch "everyone-codes" "https://everyone-codes.com/"
+niche_watch "dyalog-contest" "https://www.dyalog.com/contest.htm"
+niche_watch "numerai" "https://numer.ai/homepage"
+niche_watch "quantconnect" "https://www.quantconnect.com/competitions/"
+niche_watch "worldquant-brain" "https://platform.worldquantbrain.com/learn/tournaments"
+niche_watch "cryptopals" "https://cryptopals.com/"
+niche_watch "zk-hack-puzzles" "https://puzzles.zkhack.dev/"
+niche_watch "sygus-comp" "https://sygus-comp.sosy-lab.org/2026/"
+niche_watch "coco-confluence" "https://termportalen.org/coco2026/"
+niche_watch "qbf-gallery" "https://qbf.pages.sai.jku.at/gallery26/"
+niche_watch "pb-competition" "https://www.cril.univ-artois.fr/PB26/"
+niche_watch "tcec-chess" "https://tcec-chess.com/"
+niche_watch "ccrl-chess" "https://ccrl.chessdom.com/ccrl/"
+niche_watch "computer-olympiad" "https://icga.ugtm.es/"
+niche_watch "procjam" "https://itch.io/jam/procjam"
+niche_watch "arewefastyet" "https://arewefastyet.com/"
+niche_watch "drivendata" "https://www.drivendata.org/competitions/"
+niche_watch "zindi" "https://zindi.africa/competitions"
+niche_watch "tianchi" "https://tianchi.aliyun.com/competition/activeList"
+niche_watch "aicrowd" "https://www.aicrowd.com/challenges"
+niche_watch "mlcontests-deadline" "https://mlcontests.com/deadlines"
+niche_watch "tensara" "https://tensara.org/problems"
+
 # source 1: arjaythedev repos (new challenges surface here first)
 if J=$(fetch "https://api.github.com/users/arjaythedev/repos?sort=created&per_page=30"); then
   while IFS='|' read -r name desc url; do
