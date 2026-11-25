@@ -134,6 +134,13 @@ niche_watch "aicrowd" "https://www.aicrowd.com/challenges"
 niche_watch "mlcontests-deadline" "https://mlcontests.com/deadlines"
 niche_watch "tensara" "https://tensara.org/problems"
 
+# source 0: FLoC Olympics — the master index of the logic-competition family
+if P=$(fetch "https://www.floc26.org/olympics"); then
+  echo "$P" | grep -oE 'https?://[a-zA-Z0-9./-]+' | grep -viE 'floc26|youtube|twitter|cambridge|akamai' | sort -u | head -25 | while read -r url; do
+    upsert "floc-olympics" "$url" "$url" "logic-solver-family" "watch"
+  done
+fi
+
 # source 1: arjaythedev repos (new challenges surface here first)
 if J=$(fetch "https://api.github.com/users/arjaythedev/repos?sort=created&per_page=30"); then
   while IFS='|' read -r name desc url; do
