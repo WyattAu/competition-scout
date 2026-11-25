@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS scout_runs (
 );"
 
 report_new() { echo "NEW: [$1] $2 ($3)"; }
-declare -a NEW
+declare -a NEW=()
 
 fetch() { curl -sfL --max-time 20 -H 'User-Agent: estate-scout' "$1"; }
 
